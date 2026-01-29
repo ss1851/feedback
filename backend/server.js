@@ -31,7 +31,7 @@ let database;
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         message TEXT NOT NULL,
-        createdAt TEXT NOT NULL
+        created_at TEXT NOT NULL
       )
     `;
     console.log("✅ Connected to SQLiteCloud and table ready");
@@ -52,7 +52,7 @@ app.post("/feedback", async (req, res) => {
 
   try {
     await database.sql`
-      INSERT INTO feedback (name, message, createdAt)
+      INSERT INTO feedback (name, message, created_at)
       VALUES (${name}, ${message}, ${new Date().toISOString()})
     `;
     res.json({ message: "Feedback saved successfully!" });
