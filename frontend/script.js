@@ -9,40 +9,42 @@ function showToast(text, timeout = 2500){
 
 async function postFeedback(payload){
   // Try sending to backend first using a relative API path (no localhost)
-  const url = '/api/feedback';
+  // Try /api/feedback first (Vercel), then fall back to /feedback (local)
+  const urls = ['/api/feedback', '/feedback'];
   const controller = new AbortController();
   const timeout = setTimeout(()=>controller.abort(), 4000);
 
-  try{
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: payload.name, message: payload.message }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if(res.ok){
-      return { ok: true, from: 'server', json: async ()=> await res.json() };
-    }
-    // non-OK from server -> treat as error
-    const text = await res.text();
-    throw new Error(text || 'Server error');
-  }catch(err){
-    clearTimeout(timeout);
-    console.warn('Server unavailable, saving locally:', err && err.message);
-    // fallback: save to localStorage
+  for(const url of urls){
     try{
-      const key = 'feedbacks_offline';
-      const raw = localStorage.getItem(key);
-      const list = raw ? JSON.parse(raw) : [];
-      const item = Object.assign({ id: Date.now() }, payload, { savedAt: new Date().toISOString() });
-      list.push(item);
-      localStorage.setItem(key, JSON.stringify(list));
-      console.log('Saved feedback (local):', item);
-      return { ok: true, from: 'local', json: async ()=> ({ message: 'Saved locally' }) };
-    }catch(err2){
-      return { ok: false, from: 'error', text: async ()=> (err2 && err2.message) || 'Local save failed' };
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: payload.name, message: payload.message }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if(res.ok){
+        return { ok: true, from: 'server', json: async ()=> await res.json() };
+      }
+    }catch(err){
+      continue;
     }
+  }
+  
+  clearTimeout(timeout);
+  console.warn('Server unavailable, saving locally');
+  // fallback: save to localStorage
+  try{
+    const key = 'feedbacks_offline';
+    const raw = localStorage.getItem(key);
+    const list = raw ? JSON.parse(raw) : [];
+    const item = Object.assign({ id: Date.now() }, payload, { savedAt: new Date().toISOString() });
+    list.push(item);
+    localStorage.setItem(key, JSON.stringify(list));
+    console.log('Saved feedback (local):', item);
+    return { ok: true, from: 'local', json: async ()=> ({ message: 'Saved locally' }) };
+  }catch(err2){
+    return { ok: false, from: 'error', text: async ()=> (err2 && err2.message) || 'Local save failed' };
   }
 }
 
@@ -113,9 +115,16 @@ const feedbackListDiv = document.getElementById('feedbackList');
 if(feedbackListDiv){
   async function loadFeedback(){
     try{
-      const res = await fetch('/api/feedback');
+      // Try /api/feedback first (Vercel), then fall back to /feedback (local)
+      let res = await fetch('/api/feedback');
+      let data;
+      
+      if(!res.ok){
+        res = await fetch('/feedback');
+      }
+      
       if(!res.ok) throw new Error('Failed to load feedback');
-      const data = await res.json();
+      data = await res.json();
       const feedbackArray = data.data || data || [];
       
       if(feedbackArray.length === 0){
@@ -135,7 +144,7 @@ if(feedbackListDiv){
       `).join('');
     }catch(err){
       console.error('Error loading feedback:', err);
-      feedbackListDiv.innerHTML = '<p style="color:red">Failed to load feedback</p>';
+      feedbackListDiv.innerHTML = '<p style="color:red">Failed to load feedback: ' + err.message + '</p>';
     }
   }
 
@@ -147,7 +156,11 @@ async function deleteFeedback(id){
   if(!confirm('Delete this feedback?')) return;
   
   try{
-    const res = await fetch(`/api/feedback?id=${id}`, { method: 'DELETE' });
+    // Try /api/feedback first (Vercel), then fall back to /feedback (local)
+    let res = await fetch(`/api/feedback?id=${id}`, { method: 'DELETE' });
+    if(!res.ok){
+      res = await fetch(`/feedback?id=${id}`, { method: 'DELETE' });
+    }
     if(!res.ok) throw new Error('Failed to delete');
     showToast('Feedback deleted');
     // Reload feedback list
