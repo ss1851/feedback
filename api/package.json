@@ -5,6 +5,6 @@
     "node": "24.x"
   },
   "dependencies": {
-    "@vercel/postgres": "^0.8.1"
+    "sqlite3": "^5.1.7"
   }
 }

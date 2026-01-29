@@ -6,12 +6,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Connect to SQLite database
-const db = new sqlite3.Database("feedback.db", (err) => {
+// Connect to SQLiteCloud database
+const connectionString = process.env.SQLITECLOUD_CONNECTION_STRING;
+if (!connectionString) {
+  console.error("Error: SQLITECLOUD_CONNECTION_STRING environment variable is not set");
+  process.exit(1);
+}
+
+const db = new sqlite3.Database(connectionString, (err) => {
   if (err) {
     console.error("Database connection error:", err.message);
   } else {
-    console.log("Connected to SQLite database");
+    console.log("Connected to SQLiteCloud database");
   }
 });
 

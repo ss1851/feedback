@@ -1,4 +1,15 @@
-import { sql } from '@vercel/postgres';
+import sqlite3 from 'sqlite3';
+import { promisify } from 'util';
+
+// Initialize SQLiteCloud connection
+const connectionString = process.env.SQLITECLOUD_CONNECTION_STRING;
+if (!connectionString) {
+  throw new Error('SQLITECLOUD_CONNECTION_STRING environment variable is not set');
+}
+
+const db = new sqlite3.Database(connectionString);
+const dbRun = promisify(db.run.bind(db));
+const dbAll = promisify(db.all.bind(db));
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -18,10 +29,10 @@ export default async function handler(req, res) {
     }
 
     try {
-      await sql`
-        INSERT INTO feedback (name, message, created_at)
-        VALUES (${name}, ${message}, NOW())
-      `;
+      await dbRun(
+        'INSERT INTO feedback (name, message, created_at) VALUES (?, ?, ?)',
+        [name, message, new Date().toISOString()]
+      );
 
       return res.json({ message: 'Feedback saved successfully!' });
     } catch (err) {
@@ -32,13 +43,11 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const result = await sql`
-        SELECT id, name, message, created_at
-        FROM feedback
-        ORDER BY id DESC
-      `;
+      const rows = await dbAll(
+        'SELECT id, name, message, created_at FROM feedback ORDER BY id DESC'
+      );
 
-      return res.json({ data: result.rows });
+      return res.json({ data: rows });
     } catch (err) {
       console.error('Database error:', err);
       return res.status(500).json({ message: 'Failed to fetch feedback', error: err.message });
@@ -53,10 +62,7 @@ export default async function handler(req, res) {
     }
 
     try {
-      await sql`
-        DELETE FROM feedback
-        WHERE id = ${id}
-      `;
+      await dbRun('DELETE FROM feedback WHERE id = ?', [id]);
 
       return res.json({ message: 'Feedback deleted successfully!' });
     } catch (err) {
