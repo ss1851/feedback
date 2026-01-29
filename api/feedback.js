@@ -1,5 +1,4 @@
-import axios from 'axios';
-import https from 'https';
+import { Database } from '@sqlitecloud/drivers';
 
 // SQLiteCloud connection
 const SQLITECLOUD_URL = process.env.SQLITECLOUD_CONNECTION_STRING;
@@ -7,37 +6,18 @@ if (!SQLITECLOUD_URL) {
   throw new Error('SQLITECLOUD_CONNECTION_STRING environment variable is not set');
 }
 
-// Parse connection string
-const parsedUrl = new URL(SQLITECLOUD_URL);
-const apiKey = parsedUrl.searchParams.get('apikey');
+// Initialize database
+let database = new Database(SQLITECLOUD_URL);
 
-// SQLiteCloud REST API base URL
-const SQLITECLOUD_API = `https://${parsedUrl.hostname}:${parsedUrl.port || 8860}`;
-
-// Create HTTPS agent
-const httpsAgent = new https.Agent({ rejectUnauthorized: false });
-
-// Helper to execute queries
-async function queryDB(sql) {
-  try {
-    const response = await axios.post(
-      `${SQLITECLOUD_API}/`,
-      { sql },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        httpAgent: false,
-        httpsAgent: httpsAgent,
-      }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Database error:', error.response?.data || error.message);
-    throw error;
-  }
-}
+// Create table if it doesn't exist
+await database.sql`
+  CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )
+`;
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -57,9 +37,10 @@ export default async function handler(req, res) {
     }
 
     try {
-      await queryDB(
-        `INSERT INTO feedback (name, message, created_at) VALUES ('${name}', '${message}', '${new Date().toISOString()}')`
-      );
+      await database.sql`
+        INSERT INTO feedback (name, message, created_at)
+        VALUES (${name}, ${message}, ${new Date().toISOString()})
+      `;
 
       return res.json({ message: 'Feedback saved successfully!' });
     } catch (err) {
@@ -70,9 +51,9 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const result = await queryDB(
-        'SELECT id, name, message, created_at FROM feedback ORDER BY id DESC'
-      );
+      const result = await database.sql`
+        SELECT id, name, message, created_at FROM feedback ORDER BY id DESC
+      `;
 
       return res.json({ data: result });
     } catch (err) {
@@ -89,7 +70,9 @@ export default async function handler(req, res) {
     }
 
     try {
-      await queryDB(`DELETE FROM feedback WHERE id = ${id}`);
+      await database.sql`
+        DELETE FROM feedback WHERE id = ${id}
+      `;
 
       return res.json({ message: 'Feedback deleted successfully!' });
     } catch (err) {

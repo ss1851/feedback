@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
-const axios = require("axios");
 const path = require("path");
+const { Database } = require("@sqlitecloud/drivers");
 
 const app = express();
 app.use(cors());
@@ -19,50 +19,26 @@ if (!SQLITECLOUD_URL) {
 
 console.log("Connecting to SQLiteCloud...");
 
-// Parse SQLiteCloud connection string
-const parsedUrl = new URL(SQLITECLOUD_URL);
-const apiKey = parsedUrl.searchParams.get('apikey');
-const dbPath = parsedUrl.pathname.substring(1); // Remove leading slash
-
-// SQLiteCloud REST API base URL
-const SQLITECLOUD_API = `https://${parsedUrl.hostname}:${parsedUrl.port || 8860}`;
-
-// Helper to execute queries on SQLiteCloud
-async function queryDB(sql) {
+// Initialize database connection
+let database;
+(async () => {
   try {
-    const https = require('https');
-    const agent = new https.Agent({ rejectUnauthorized: false });
+    database = new Database(SQLITECLOUD_URL);
     
-    const response = await axios.post(
-      `${SQLITECLOUD_API}/`,
-      { sql },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        httpAgent: false,
-        httpsAgent: agent,
-      }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Database error:', error.response?.data || error.message);
-    throw error;
+    // Create table if it doesn't exist
+    await database.sql`
+      CREATE TABLE IF NOT EXISTS feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        message TEXT NOT NULL,
+        createdAt TEXT NOT NULL
+      )
+    `;
+    console.log("✅ Connected to SQLiteCloud and table ready");
+  } catch (err) {
+    console.error("❌ Connection error:", err.message);
   }
-}
-
-// Create table if it doesn't exist
-queryDB(`
-  CREATE TABLE IF NOT EXISTS feedback (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    message TEXT NOT NULL,
-    createdAt TEXT NOT NULL
-  )
-`)
-  .then(() => console.log("✅ Connected to SQLiteCloud"))
-  .catch(err => console.log("⚠️ Database warning:", err.message));
+})();
 
 // ==============================
 // POST: Save feedback
@@ -75,11 +51,13 @@ app.post("/feedback", async (req, res) => {
   }
 
   try {
-    await queryDB(
-      `INSERT INTO feedback (name, message, createdAt) VALUES ('${name}', '${feedback}', '${new Date().toISOString()}')`
-    );
+    await database.sql`
+      INSERT INTO feedback (name, message, createdAt)
+      VALUES (${name}, ${feedback}, ${new Date().toISOString()})
+    `;
     res.json({ message: "Feedback saved successfully!" });
   } catch (err) {
+    console.error("POST error:", err.message);
     return res.status(500).json({ message: "Failed to save feedback", error: err.message });
   }
 });
@@ -89,9 +67,12 @@ app.post("/feedback", async (req, res) => {
 // ==============================
 app.get("/feedback", async (req, res) => {
   try {
-    const result = await queryDB("SELECT * FROM feedback ORDER BY id DESC");
+    const result = await database.sql`
+      SELECT * FROM feedback ORDER BY id DESC
+    `;
     res.json(result);
   } catch (err) {
+    console.error("GET error:", err.message);
     return res.status(500).json({ message: "Failed to fetch feedback", error: err.message });
   }
 });
@@ -103,9 +84,12 @@ app.delete("/feedback/:id", async (req, res) => {
   const id = req.params.id;
 
   try {
-    await queryDB(`DELETE FROM feedback WHERE id = ${id}`);
+    await database.sql`
+      DELETE FROM feedback WHERE id = ${id}
+    `;
     res.json({ message: "Feedback deleted successfully!" });
   } catch (err) {
+    console.error("DELETE error:", err.message);
     return res.status(500).json({ message: "Failed to delete feedback", error: err.message });
   }
 });
