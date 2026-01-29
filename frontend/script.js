@@ -71,7 +71,7 @@ if(form){
     status.textContent = '';
 
     try{
-      const res = await postFeedback({ name, feedback });
+      const res = await postFeedback({ name, message: feedback });
       if(!res.ok){
         const text = await res.text();
         throw new Error(text || 'Server error');
@@ -106,4 +106,53 @@ if(openFeedbackBtn){
     // Navigate to the feedback page
     window.location.href = 'cards.html';
   });
+}
+
+// Load and display feedback on cards.html
+const feedbackListDiv = document.getElementById('feedbackList');
+if(feedbackListDiv){
+  async function loadFeedback(){
+    try{
+      const res = await fetch('/api/feedback');
+      if(!res.ok) throw new Error('Failed to load feedback');
+      const data = await res.json();
+      const feedbackArray = data.data || data || [];
+      
+      if(feedbackArray.length === 0){
+        feedbackListDiv.innerHTML = '<p style="text-align:center;color:#999;padding:20px">No feedback yet</p>';
+        return;
+      }
+
+      feedbackListDiv.innerHTML = feedbackArray.map(item => `
+        <div class="feedback-card">
+          <div class="feedback-header">
+            <strong>${item.name}</strong>
+            <span class="feedback-date">${new Date(item.created_at || item.createdAt).toLocaleDateString()}</span>
+          </div>
+          <p>${item.message}</p>
+          <button class="btn delete-btn" onclick="deleteFeedback(${item.id})">Delete</button>
+        </div>
+      `).join('');
+    }catch(err){
+      console.error('Error loading feedback:', err);
+      feedbackListDiv.innerHTML = '<p style="color:red">Failed to load feedback</p>';
+    }
+  }
+
+  // Load feedback when page loads
+  loadFeedback();
+}
+
+async function deleteFeedback(id){
+  if(!confirm('Delete this feedback?')) return;
+  
+  try{
+    const res = await fetch(`/api/feedback?id=${id}`, { method: 'DELETE' });
+    if(!res.ok) throw new Error('Failed to delete');
+    showToast('Feedback deleted');
+    // Reload feedback list
+    location.reload();
+  }catch(err){
+    showToast('Failed to delete feedback');
+  }
 }
