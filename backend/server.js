@@ -44,16 +44,16 @@ let database;
 // POST: Save feedback
 // ==============================
 app.post("/feedback", async (req, res) => {
-  const { name, feedback } = req.body;
+  const { name, message } = req.body;
 
-  if (!name || !feedback) {
-    return res.status(400).json({ message: "Name and feedback are required" });
+  if (!name || !message) {
+    return res.status(400).json({ message: "Name and message are required" });
   }
 
   try {
     await database.sql`
       INSERT INTO feedback (name, message, createdAt)
-      VALUES (${name}, ${feedback}, ${new Date().toISOString()})
+      VALUES (${name}, ${message}, ${new Date().toISOString()})
     `;
     res.json({ message: "Feedback saved successfully!" });
   } catch (err) {
@@ -97,6 +97,22 @@ app.delete("/feedback/:id", async (req, res) => {
 // ==============================
 // Start server
 // ==============================
+// ==============================
+// TEST: Add mock data for testing
+// ==============================
+app.post("/test/seed", async (req, res) => {
+  try {
+    await database.sql`
+      INSERT INTO feedback (name, message, createdAt)
+      VALUES ('Test User', 'This is a test feedback message', ${new Date().toISOString()})
+    `;
+    res.json({ message: "Mock data added successfully!" });
+  } catch (err) {
+    console.error("Seed error:", err.message);
+    return res.status(500).json({ message: "Failed to seed data", error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
