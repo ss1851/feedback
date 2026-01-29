@@ -1,0 +1,20 @@
+{
+  "name": "feedback-app",
+  "version": "1.0.0",
+  "description": "A feedback collection app with Vercel deployment",
+  "main": "api/feedback.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Frontend and API ready for deployment'",
+    "start": "node backend/server.js"
+  },
+  "dependencies": {
+    "@vercel/postgres": "^0.8.1"
+  },
+  "devDependencies": {
+    "vercel": "latest"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
