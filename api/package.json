@@ -6,6 +6,6 @@
     "node": "24.x"
   },
   "dependencies": {
-    "sqlite3": "^5.1.7"
+    "axios": "^1.6.0"
   }
 }
